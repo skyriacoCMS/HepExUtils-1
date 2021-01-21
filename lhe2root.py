@@ -130,8 +130,8 @@ try:
   t = ROOT.TTree("tree", "tree")
 
   branchnames_float = "costheta1", "costheta2", "Phi1", "costhetastar", "Phi", "HJJpz","M4L","MZ1","MZ2","costheta1d","costheta2d","Phid","costhetastard","Phi1d"
-  #if args.zh or args.wh:
-  #  branchnames_float += ("mV", "mVstar")
+  if args.zh or args.wh:
+    branchnames_float += ("mV", "mVstar")
   if args.ggH4lMG:
     branchnames_float_array=("weights",)
     num_weights=30
@@ -185,7 +185,6 @@ try:
         
 
         print "Processed", i, "events"
-        
         if event.daughters == 0 : 
           continue
 
@@ -193,10 +192,20 @@ try:
         #if i > 20000 : 
         #  break
         
-        if args.zh:
-          process = TVar.Had_ZH
-        elif args.wh:
-          process = TVar.Had_WH
+	### Automatically detect Had or Lep associated for VH production###
+        associated_flavor = 0
+        for a in event.associated:
+          associated_flavor=abs(a.first)
+        if associated_flavor in [1,2,3,4,5,6]:
+          if args.zh:
+            process = TVar.Had_ZH
+          elif args.wh:
+            process = TVar.Had_WH
+        if associated_flavor in [11,12,13,14,15,16]:
+          if args.zh:
+            process = TVar.Lep_ZH
+          elif args.wh:
+            process = TVar.Lep_WH
         elif args.vbf:
           process = TVar.JJVBF
 
@@ -244,7 +253,6 @@ try:
         event.setProcess(TVar. HSMHiggs,TVar.MCFM,TVar.JJVBF)
         event.ghz4 = 1
         val2 =  event.computeProdDecP()
-
         event.setProcess(TVar. HSMHiggs,TVar.MCFM,TVar.JJVBF)
         event.ghz1 = 1
         event.ghz2 = 0
@@ -280,10 +288,9 @@ try:
         #branches["DCP_old"][0] = branches["pg1g4"][0] / (branches["pg1"][0] + branches["pg4"][0])
 
         if args.zh or args.wh:
-
-          branches["costheta1"][0], branches["costheta2"][0], branches["Phi"][0], branches["costhetastar"][0], branches["Phi1"][0]= event.computeVHAngles(process)
-          branches["mV"][0] = sum((particle.second for particle in event.associated), ROOT.TLorentzVector()).M()
-          branches["mVstar"][0] = sum((particle.second for particle in itertools.chain(event.daughters, event.associated)), ROOT.TLorentzVector()).M()
+          branches["mV"][0], branches["mVstar"][0], branches["costheta1"][0], branches["costheta2"][0], branches["Phi"][0], branches["costhetastar"][0], branches["Phi1"][0]= event.computeVHAngles(process)
+          #branches["mV"][0] = sum((particle.second for particle in event.associated), ROOT.TLorentzVector()).M()
+          #branches["mVstar"][0] = sum((particle.second for particle in itertools.chain(event.daughters, event.associated)), ROOT.TLorentzVector()).M()
         elif args.vbf:
           branches["q2V1"][0], branches["q2V2"][0], branches["costheta1"][0], branches["costheta2"][0], branches["Phi"][0], branches["costhetastar"][0], branches["Phi1"][0]= event.computeVBFAngles()
           branches["HJJpz"][0] = sum((particle.second for particle in itertools.chain(event.daughters, event.associated)), ROOT.TLorentzVector()).Pz()
@@ -346,14 +353,11 @@ try:
         branches["pyj1"][0] = pj1.Py()
         branches["pzj1"][0] = pj1.Pz()
         branches["Ej1"][0] = pj1.E()
-
         pj2 = event.associated[1].second
         branches["pxj2"][0] = pj2.Px()
         branches["pyj2"][0] = pj2.Py()
         branches["pzj2"][0] = pj2.Pz()
         branches["Ej2"][0] = pj2.E()
-
-
         phjj = pH + pj1 + pj2
         branches["rapHJJ"][0] = phjj.Rapidity()
         '''
