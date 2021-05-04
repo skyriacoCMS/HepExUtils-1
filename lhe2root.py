@@ -10,9 +10,10 @@ if __name__ == "__main__":
   parser.add_argument("inputfile", nargs="+")
   g = parser.add_mutually_exclusive_group(required=True)
   g.add_argument("--vbf", action="store_true")
+  g.add_argument("--vbf_withdecay", action="store_true")
   g.add_argument("--zh", action="store_true")
   g.add_argument("--wh", action="store_true")
-  g.add_argument("--ggH4l", action="store_true") # for ggH 4l JHUGen
+  g.add_argument("--ggH4l", action="store_true") # for ggH 4l JHUGen and prophecy
   g.add_argument("--ggH4lMG", action="store_true") # for ggH4l Madgraph with weights
   parser.add_argument("--use-flavor", action="store_true")
   parser.add_argument("--CJLST", action="store_true")
@@ -28,7 +29,7 @@ import itertools
 
 import ROOT
 
-from lhefile import LHEFile_JHUGenVBFVH, LHEFile_Hwithdecay, LHEFile_Offshell4l
+from lhefile import LHEFile_JHUGenVBFVH, LHEFile_Hwithdecay,LHEFile_HwithdecayOnly, LHEFile_Offshell4l,LHEFile_StableHiggs
 from mela import Mela, SimpleParticle_t, SimpleParticleCollection_t, TVar
 
 def tlvfromptetaphim(pt, eta, phi, m):
@@ -98,9 +99,15 @@ class LHEEvent_Offshell4l(LHEEvent):
         line = line.replace(str(id), "0", 1)  #replace the first instance of the jet id with 0, which means unknown jet
       if status == -1:
         mothers.append(line)
-      if ( abs(id) in (11, 12, 13, 14, 15, 16) or abs(id) in (1, 2, 3, 4, 5)  ) and status == 1:
+
+      if ( abs(id) in ( 25) or abs(id) in (25)  ) and status == 1:
         daughters.append(line)
+        print "added daught"
         flav4l = flav4l*abs(id)
+
+        #      if ( abs(id) in (11, 12, 13, 14, 15, 16) or abs(id) in (1, 2, 3, 4, 5)  ) and status == 1:
+        #       daughters.append(line)
+        #       flav4l = flav4l*abs(id)
       #if abs(id) in (0, 1, 2, 3, 4, 5, 21) and status == 1:
       #  associated.append(line)
       #if abs(id) in (0, 1, 2, 3, 4, 5, 21) and status == 1:
@@ -108,8 +115,8 @@ class LHEEvent_Offshell4l(LHEEvent):
 
     #if len(daughters) == 4:
       #print "flavour comp:",flav4l
-    if len(daughters) != 4:
-      raise ValueError("Wrong number of daughters (expected {}, found {})\n\n".format(4, len(daughters))+"\n".join(lines))
+    #if len(daughters) != 4:
+    #  raise ValueError("Wrong number of daughters (expected {}, found {})\n\n".format(4, len(daughters))+"\n".join(lines))
     if cls.nassociatedparticles is not None and len(associated) != cls.nassociatedparticles:
       raise ValueError("Wrong number of associated particles (expected {}, found {})\n\n".format(cls.nassociatedparticles, len(associated))+"\n".join(lines))
     if len(mothers) != 2:
@@ -142,6 +149,7 @@ try:
     "ptH", "pxH",  "pyH",  "pzH",  "EH","rapH","rapHJJ","decayMode","qfl1","qfl2","qfl1mom","qfl2mom",
     "pxj1", "pyj1", "pzj1", "Ej1",
     "pxj2", "pyj2", "pzj2", "Ej2",
+    "pxph1","pyph1","pzph1","Eph1",
     "weight",
     "ptdau1","pxdau1","pydau1","pzdau1","Edau1","flavdau1", 
     "ptdau2","pxdau2","pydau2","pzdau2","Edau2","flavdau2",
@@ -165,32 +173,33 @@ try:
     t.Branch(name, branches_int[names], name+"/I")
 
   branches.update(branches_int)
-
+  g4 = 0
   if args.zh:
     g4 = 0.144057
   if args.wh:
     g4 = 0.1236136
   if args.vbf:
     g4 = 0.297979
-  if args.ggH4lMG:
-    g4 = 0 ## PlaceHolder!!
-
-  #fileclass = LHEEvent_Offshell4l
-
+  
+  
   for inputfile in args.inputfile:
     print inputfile
-    with LHEFile_Hwithdecay(inputfile, isgen=args.use_flavor) as f:
-      
+
+
+    inputfclass = LHEFile_Hwithdecay(inputfile,isgen=args.use_flavor)
+    if args.ggH4l : 
+      inputfclass = LHEFile_HwithdecayOnly(inputfile,isgen=args.use_flavor)
+    if args.vbf   :
+      inputfclass = LHEFile_StableHiggs(inputfile,isgen=args.use_flavor)
+    
+    with inputfclass  as f:
       for i, event in enumerate(f):
+        if i > 10000 : 
+          break
+        #print "Processed", i, "events"
+        #if( i % 1000 == 0): 
+        #  print i
         
-
-        print "Processed", i, "events"
-        if event.daughters == 0 : 
-          continue
-
-        #if i != 0 and i % 1000 == 0:
-        #if i > 20000 : 
-        #  break
         
 	### Automatically detect Had or Lep associated for VH production###
         associated_flavor = 0
@@ -206,16 +215,18 @@ try:
             process = TVar.Lep_ZH
           elif args.wh:
             process = TVar.Lep_WH
-        elif args.vbf:
+        elif args.vbf or args.vbf_withdecay:
           process = TVar.JJVBF
 
-
-        #Print daughters info
+        if args.ggH4l :
+          process = TVar.ZZGG
+        
         
         flav4l = 1; 
         for d in event.daughters: 
          # print d.first
           flav4l = flav4l*d.first
+
         '''  
         for ind,d in enumerate(event.associated,1): 
           #print d.first," ",d 
@@ -235,53 +246,49 @@ try:
         val0 = event.computeProdP()
         '''
 
-        event.setProcess(TVar. HSMHiggs,TVar.JHUGen,TVar.ZZGG)
-        event.ghz1 = 1
-        #branches["pg1"][0] = event.computeProdDecP()
-
-        #event.setProcess(TVar. HSMHiggs,TVar.MCFM,TVar.JJVBF)
-        event.ghz2 = 0
-        event.ghz1 = 0
-        event.ghz4 = 0 #0.29
+        #Probabilities - gz4 does not work :( 
+        #event.setProcess(TVar. HSMHiggs,TVar.JHUGen,process)
+        #event.setProcess(TVar.SelfDefine_spin0,TVar.JHUGen,process)
+        #event.ghz1 = 1
+        #branches["pg1"][0] = event.computeProdP()
+        #print "g1 :",branches["pg1"][0]
         
-        #branches["pg4pd"][0] = event.computeProdDecP()
+        #event.setProcess(TVar.SelfDefine_spin0,TVar.JHUGen,TVar.JJVBF)
+        #event.ghz1 = 0
+        #event.ghz2 = 0
+        #event.ghz4 = 0.297979
         #branches["pg4"][0] = event.computeProdP()
+        #print "g4 :",event.computeProdP()
+
+        #print branches["pg4"][0], branches["pg1"][0]
         #branches["pg4pd"][0] = event.computeProdDecP()
-        branches["pg4"][0] = event.computeP()
-
-        '''
-        event.setProcess(TVar. HSMHiggs,TVar.MCFM,TVar.JJVBF)
-        event.ghz4 = 1
-        val2 =  event.computeProdDecP()
-        event.setProcess(TVar. HSMHiggs,TVar.MCFM,TVar.JJVBF)
-        event.ghz1 = 1
-        event.ghz2 = 0
-        event.ghz4 = 0
-        val5 =  event.computeProdDecP()
-        '''
-
-        #print "weights :",val1," ",val5," ",val2,"  ",branches["pg4pd"][0]
-        
-
-  
-
+        #branches["pg4"][0] = event.computeP()
+        #event.setProcess(TVar. HSMHiggs,TVar.MCFM,TVar.JJVBF)
+        #event.ghz4 = 1
+        #val2 =  event.computeProdDecP()
+        #event.setProcess(TVar. HSMHiggs,TVar.MCFM,TVar.JJVBF)
+        #event.ghz1 = 1
+        #event.ghz2 = 0
+        #event.ghz4 = 0
+        #val5 =  event.computeProdDecP()
         #event.setProcess(TVar.SelfDefine_spin0, TVar.JHUGen, process)
         #event.ghz4 = g4
       
-#        event.setProcess(TVar.SelfDefine_spin0, TVar.MCFM, TVar.JJEW)
- #       event.ghz1 = 1
- #       branches["pg1"][0] = event.computeProdDecP()
+        #event.setProcess(TVar.SelfDefine_spin0, TVar.MCFM, TVar.JJEW)
+        #event.ghz1 = 1
+        #branches["pg1"][0] = event.computeProdDecP()
 
-#        event.setProcess(TVar.SelfDefine_spin0, TVar.JHUGen, process)
-        event.ghz1 = 1
-        event.ghz4 = g4
-
+        #event.setProcess(TVar.SelfDefine_spin0, TVar.JHUGen, process)
+        #event.ghz1 = 1
+        #event.ghz2 = 0
+        #event.ghz4 = 0.297979
         #branches["pg1g4"][0] = event.computeProdP() - branches["pg1"][0] - branches["pg4"][0]
+        
 
-        if branches["pg1"][0] == branches["pg4"][0] == 0:
+        #if branches["pg1"][0] == branches["pg4"][0] == 0:
         #  for _ in event.daughters: print _.first,; _.second.Print()
         #  for _ in event.associated: print _.first,; _.second.Print()
-          continue
+        #  continue
 
         #branches["D0minus"][0] = branches["pg1"][0] / (branches["pg1"][0] + branches["pg4"][0])
         #branches["DCP"][0] = branches["pg1g4"][0] / (2 * (branches["pg1"][0] * branches["pg4"][0]) ** 0.5)
@@ -295,6 +302,10 @@ try:
           branches["q2V1"][0], branches["q2V2"][0], branches["costheta1"][0], branches["costheta2"][0], branches["Phi"][0], branches["costhetastar"][0], branches["Phi1"][0]= event.computeVBFAngles()
           branches["HJJpz"][0] = sum((particle.second for particle in itertools.chain(event.daughters, event.associated)), ROOT.TLorentzVector()).Pz()
 
+        elif args.vbf_withdecay:
+          branches["q2V1"][0], branches["q2V2"][0], branches["costheta1"][0], branches["costheta2"][0], branches["Phi"][0], branches["costhetastar"][0], branches["Phi1"][0]= event.computeVBFAngles()
+          branches["HJJpz"][0] = sum((particle.second for particle in itertools.chain(event.daughters, event.associated)), ROOT.TLorentzVector()).Pz()
+
           branches["M4L"][0], branches["MZ1"][0], branches["MZ2"][0], branches["costheta1d"][0],branches["costheta2d"][0], branches["Phid"][0], branches["costhetastard"][0], branches["Phi1d"][0]= event.computeDecayAngles()
 
 	
@@ -302,65 +313,82 @@ try:
 	  branches["M4L"][0], branches["MZ1"][0], branches["MZ2"][0], branches["costheta1d"][0],branches["costheta2d"][0], branches["Phid"][0], branches["costhetastard"][0], branches["Phi1d"][0]= event.computeDecayAngles()
 
         pH = sum((particle.second for particle in event.daughters), ROOT.TLorentzVector())
-        branches["ptH"][0] = pH.Pt()
-        branches["pxH"][0] = pH.Px()
-        branches["pyH"][0] = pH.Py()
-        branches["pzH"][0] = pH.Pz()
-        branches["EH"][0] = pH.E()
-        branches["rapH"][0] = pH.Rapidity()
+        if args.ggH4l:
+          if( len(event.associated) > 0):
+            ph1 = event.associated[0].second
+            pHph = pH + ph1 
+            branches["pxph1"][0] = pHph.Px()
+            branches["pyph1"][0] = pHph.Py()
+            branches["pzph1"][0] = pHph.Pz()
+            branches["Eph1"][0]  = pHph.E()
+
+        else:     
+          branches["ptH"][0] = pH.Pt()
+          branches["pxH"][0] = pH.Px()
+          branches["pyH"][0] = pH.Py()
+          branches["pzH"][0] = pH.Pz()
+          branches["EH"][0] = pH.E()
+          branches["rapH"][0] = pH.Rapidity()
                 
+        if not args.vbf : 
+          pdau1 = event.daughters[0].second
+          branches["ptdau1"][0] = pdau1.Pt()
+          branches["pxdau1"][0] = pdau1.Px()
+          branches["pydau1"][0] = pdau1.Py()
+          branches["pzdau1"][0] = pdau1.Pz()
+          branches["Edau1"][0] = pdau1.E()
+          branches["flavdau1"][0] = event.daughters[0].first
+          
+          
+          pdau2 = event.daughters[1].second
+          branches["ptdau2"][0] = pdau2.Pt()
+          branches["pxdau2"][0] = pdau2.Px()
+          branches["pydau2"][0] = pdau2.Py()
+          branches["pzdau2"][0] = pdau2.Pz()
+          branches["Edau2"][0] = pdau2.E()
+          branches["flavdau2"][0] = event.daughters[1].first
+          
+          pdau3 = event.daughters[2].second
+          branches["ptdau3"][0] = pdau3.Pt()
+          branches["pxdau3"][0] = pdau3.Px()
+          branches["pydau3"][0] = pdau3.Py()
+          branches["pzdau3"][0] = pdau3.Pz()
+          branches["Edau3"][0] = pdau3.E()
+          branches["flavdau3"][0] = event.daughters[2].first
+          
+          
+          pdau4 = event.daughters[3].second
+          branches["ptdau4"][0] = pdau4.Pt()
+          branches["pxdau4"][0] = pdau4.Px()
+          branches["pydau4"][0] = pdau4.Py()
+          branches["pzdau4"][0] = pdau4.Pz()
+          branches["Edau4"][0] = pdau4.E()
+          branches["flavdau4"][0] = event.daughters[3].first
+          
         
-        pdau1 = event.daughters[0].second
-        branches["ptdau1"][0] = pdau1.Pt()
-        branches["pxdau1"][0] = pdau1.Px()
-        branches["pydau1"][0] = pdau1.Py()
-        branches["pzdau1"][0] = pdau1.Pz()
-        branches["Edau1"][0] = pdau1.E()
-        branches["flavdau1"][0] = event.daughters[0].first
 
+        if args.ggH4l:
+          if( len(event.associated) > 0):
+            ph1 = event.associated[0].second
+            branches["pxph1"][0] = ph1.Px()
+            branches["pyph1"][0] = ph1.Py()
+            branches["pzph1"][0] = ph1.Pz()
+            branches["Eph1"][0] = ph1.E()
+
+        if args.vbf or args.zh or args.wh :     
+          pj1 = event.associated[0].second
+          branches["pxj1"][0] = pj1.Px()
+          branches["pyj1"][0] = pj1.Py()
+          branches["pzj1"][0] = pj1.Pz()
+          branches["Ej1"][0] = pj1.E()          
+          pj2 = event.associated[1].second
+          branches["pxj2"][0] = pj2.Px()
+          branches["pyj2"][0] = pj2.Py()
+          branches["pzj2"][0] = pj2.Pz()
+          branches["Ej2"][0] = pj2.E()
+          phjj = pH + pj1 + pj2
+          branches["rapHJJ"][0] = phjj.Rapidity()
         
-        pdau2 = event.daughters[1].second
-        branches["ptdau2"][0] = pdau2.Pt()
-        branches["pxdau2"][0] = pdau2.Px()
-        branches["pydau2"][0] = pdau2.Py()
-        branches["pzdau2"][0] = pdau2.Pz()
-        branches["Edau2"][0] = pdau2.E()
-        branches["flavdau2"][0] = event.daughters[1].first
-
-        pdau3 = event.daughters[2].second
-        branches["ptdau3"][0] = pdau3.Pt()
-        branches["pxdau3"][0] = pdau3.Px()
-        branches["pydau3"][0] = pdau3.Py()
-        branches["pzdau3"][0] = pdau3.Pz()
-        branches["Edau3"][0] = pdau3.E()
-        branches["flavdau3"][0] = event.daughters[2].first
-
-
-        pdau4 = event.daughters[3].second
-        branches["ptdau4"][0] = pdau4.Pt()
-        branches["pxdau4"][0] = pdau4.Px()
-        branches["pydau4"][0] = pdau4.Py()
-        branches["pzdau4"][0] = pdau4.Pz()
-        branches["Edau4"][0] = pdau4.E()
-        branches["flavdau4"][0] = event.daughters[3].first
-        
-
-
-
-        '''
-        pj1 = event.associated[0].second
-        branches["pxj1"][0] = pj1.Px()
-        branches["pyj1"][0] = pj1.Py()
-        branches["pzj1"][0] = pj1.Pz()
-        branches["Ej1"][0] = pj1.E()
-        pj2 = event.associated[1].second
-        branches["pxj2"][0] = pj2.Px()
-        branches["pyj2"][0] = pj2.Py()
-        branches["pzj2"][0] = pj2.Pz()
-        branches["Ej2"][0] = pj2.E()
-        phjj = pH + pj1 + pj2
-        branches["rapHJJ"][0] = phjj.Rapidity()
-        '''
 	if args.ggH4lMG:
           key_sorted=sorted(event.weights)
           list_weights=[]
