@@ -60,6 +60,9 @@ def remove_diag(diag, model):
           return True
         if (p.id == 25) and hasL:
           return True
+        ##Hqq check
+        if (abs(p.id) == 1 or abs(p.id) == 2 or abs(p.id) == 3 or abs(p.id) == 4) and hasH:
+          return True
         if p.id == 32:
           return True
         if abs(p.id) == 11 or abs(p.id) == 13:
@@ -67,9 +70,9 @@ def remove_diag(diag, model):
         if p.id == 25:
           hasH=True
         ### Remove New Higgs and Z prime
-        if p.id == 32:
+        if p.id == 9000005:
           return True
-        if p.id == 35:
+        if p.id == 9000008:
           return True
     for v in draw.vertexList:
       HasZ=False
