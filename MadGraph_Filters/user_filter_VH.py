@@ -102,3 +102,4 @@ def remove_diag(diag, model):
         #p = external.lines[0] # FeynmanLine object
         #if abs(p.id) < 7: # PDG code less than 7 means a SM quark
         #    other_vertex = p.end # VertexPoint object
+    return False
