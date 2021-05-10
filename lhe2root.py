@@ -12,6 +12,8 @@ if __name__ == "__main__":
   g.add_argument("--vbf", action="store_true")
   g.add_argument("--vbf_withdecay", action="store_true")
   g.add_argument("--zh", action="store_true")
+  g.add_argument("--wh_withdecay", action="store_true")
+  g.add_argument("--zh_withdecay", action="store_true")
   g.add_argument("--wh", action="store_true")
   g.add_argument("--ggH4l", action="store_true") # for ggH 4l JHUGen and prophecy
   g.add_argument("--ggH4lMG", action="store_true") # for ggH4l Madgraph with weights
@@ -142,10 +144,10 @@ try:
   if args.ggH4lMG:
     branchnames_float_array=("weights",)
     num_weights=30
-  if args.vbf:
+  if args.vbf or args.vbf_withdecay:
     branchnames_float += ("q2V1", "q2V2")
   branchnames_float += (
-    "pg1", "pg4", "pg4pd", "pg1g4", "D0minus", "DCP", "DCP_old",
+    "pg1", "pg4", "pg4pd", "pg1g4", "pg2","pg1g2","D0minus", "DCP", "Dint", "D0hplus",
     "ptH", "pxH",  "pyH",  "pzH",  "EH","rapH","rapHJJ","decayMode","qfl1","qfl2","qfl1mom","qfl2mom",
     "pxj1", "pyj1", "pzj1", "Ej1",
     "pxj2", "pyj2", "pzj2", "Ej2",
@@ -189,15 +191,18 @@ try:
     inputfclass = LHEFile_Hwithdecay(inputfile,isgen=args.use_flavor)
     if args.ggH4l : 
       inputfclass = LHEFile_HwithdecayOnly(inputfile,isgen=args.use_flavor)
-    if args.vbf   :
+    if args.vbf or args.zh or args.wh   :
       inputfclass = LHEFile_StableHiggs(inputfile,isgen=args.use_flavor)
     
+      
     with inputfclass  as f:
       for i, event in enumerate(f):
-        if i > 10000 : 
-          break
+
+        #debugging purposes
+        #if i > 1000 : 
+        #  break
         #print "Processed", i, "events"
-        #if( i % 1000 == 0): 
+        #if( i % 100 == 0): 
         #  print i
         
         
@@ -221,7 +226,7 @@ try:
         if args.ggH4l :
           process = TVar.ZZGG
         
-        
+        #event.setProcess(TVar.SelfDefine_spin0,TVar.JHUGen,process)
         flav4l = 1; 
         for d in event.daughters: 
          # print d.first
@@ -246,20 +251,47 @@ try:
         val0 = event.computeProdP()
         '''
 
-        #Probabilities - gz4 does not work :( 
+        #Probabilities 
+        #calling twice computeProdP() does not work with single setProcess
         #event.setProcess(TVar. HSMHiggs,TVar.JHUGen,process)
-        #event.setProcess(TVar.SelfDefine_spin0,TVar.JHUGen,process)
-        #event.ghz1 = 1
-        #branches["pg1"][0] = event.computeProdP()
-        #print "g1 :",branches["pg1"][0]
-        
-        #event.setProcess(TVar.SelfDefine_spin0,TVar.JHUGen,TVar.JJVBF)
-        #event.ghz1 = 0
-        #event.ghz2 = 0
-        #event.ghz4 = 0.297979
-        #branches["pg4"][0] = event.computeProdP()
-        #print "g4 :",event.computeProdP()
+        #Need to correct coupling values to reflect prob_g4 = prob_g1 for pure samples
+        if args.vbf or args.vbf_withdecay  : 
+          event.setProcess(TVar.SelfDefine_spin0,TVar.JHUGen,process)
+          event.ghz1 = 1
+          branches["pg1"][0] = event.computeProdP()
+                    
 
+          event.setProcess(TVar.SelfDefine_spin0,TVar.JHUGen,process)
+          event.ghz1 = 0
+          event.ghz4 = 0.297979
+          branches["pg4"][0] = event.computeProdP()
+          
+
+          event.setProcess(TVar.SelfDefine_spin0,TVar.JHUGen,process)
+          event.ghz1 = 1
+          event.ghz4 = 0.297979
+          bsi_g4g1 =  event.computeProdP()
+          branches["pg1g4"][0] = bsi_g4g1 - branches["pg1"][0] - branches["pg4"][0]
+          
+
+          event.setProcess(TVar.SelfDefine_spin0,TVar.JHUGen,process)
+          event.ghz1 = 0
+          event.ghz2 = 0.297979
+          branches["pg2"][0] =  event.computeProdP()
+
+          event.setProcess(TVar.SelfDefine_spin0,TVar.JHUGen,process)
+          event.ghz1 = 1
+          event.ghz2 = 0.297979
+          bsi_g2g1 = event.computeProdP()
+          branches["pg1g2"][0] = bsi_g2g1 - branches["pg1"][0] - branches["pg2"][0] 
+          
+
+          
+          branches["D0minus"][0] = branches["pg1"][0] / (branches["pg1"][0] + branches["pg4"][0])
+          branches["DCP"][0] = branches["pg1g4"][0] / (2 * (branches["pg1"][0] * branches["pg4"][0]) ** 0.5)
+          branches["D0hplus"][0] = branches["pg1"][0] / (branches["pg1"][0] + branches["pg2"][0])
+          branches["Dint"][0] = branches["pg1g2"][0] / (2 * (branches["pg1"][0] * branches["pg2"][0]) ** 0.5)
+        
         #print branches["pg4"][0], branches["pg1"][0]
         #branches["pg4pd"][0] = event.computeProdDecP()
         #branches["pg4"][0] = event.computeP()
@@ -282,7 +314,6 @@ try:
         #event.ghz1 = 1
         #event.ghz2 = 0
         #event.ghz4 = 0.297979
-        #branches["pg1g4"][0] = event.computeProdP() - branches["pg1"][0] - branches["pg4"][0]
         
 
         #if branches["pg1"][0] == branches["pg4"][0] == 0:
@@ -290,12 +321,14 @@ try:
         #  for _ in event.associated: print _.first,; _.second.Print()
         #  continue
 
-        #branches["D0minus"][0] = branches["pg1"][0] / (branches["pg1"][0] + branches["pg4"][0])
-        #branches["DCP"][0] = branches["pg1g4"][0] / (2 * (branches["pg1"][0] * branches["pg4"][0]) ** 0.5)
+        
         #branches["DCP_old"][0] = branches["pg1g4"][0] / (branches["pg1"][0] + branches["pg4"][0])
 
         if args.zh or args.wh:
           branches["mV"][0], branches["mVstar"][0], branches["costheta1"][0], branches["costheta2"][0], branches["Phi"][0], branches["costhetastar"][0], branches["Phi1"][0]= event.computeVHAngles(process)
+        elif args.zh_withdecay or args.wh_withdecay :
+          branches["mV"][0], branches["mVstar"][0], branches["costheta1"][0], branches["costheta2"][0], branches["Phi"][0], branches["costhetastar"][0], branches["Phi1"][0]= event.computeVHAngles(process)
+          branches["M4L"][0], branches["MZ1"][0], branches["MZ2"][0], branches["costheta1d"][0],branches["costheta2d"][0], branches["Phid"][0], branches["costhetastard"][0], branches["Phi1d"][0]= event.computeDecayAngles()
           #branches["mV"][0] = sum((particle.second for particle in event.associated), ROOT.TLorentzVector()).M()
           #branches["mVstar"][0] = sum((particle.second for particle in itertools.chain(event.daughters, event.associated)), ROOT.TLorentzVector()).M()
         elif args.vbf:
@@ -305,7 +338,6 @@ try:
         elif args.vbf_withdecay:
           branches["q2V1"][0], branches["q2V2"][0], branches["costheta1"][0], branches["costheta2"][0], branches["Phi"][0], branches["costhetastar"][0], branches["Phi1"][0]= event.computeVBFAngles()
           branches["HJJpz"][0] = sum((particle.second for particle in itertools.chain(event.daughters, event.associated)), ROOT.TLorentzVector()).Pz()
-
           branches["M4L"][0], branches["MZ1"][0], branches["MZ2"][0], branches["costheta1d"][0],branches["costheta2d"][0], branches["Phid"][0], branches["costhetastard"][0], branches["Phi1d"][0]= event.computeDecayAngles()
 
 	
@@ -330,7 +362,7 @@ try:
           branches["EH"][0] = pH.E()
           branches["rapH"][0] = pH.Rapidity()
                 
-        if not args.vbf : 
+        if not args.vbf and not args.zh and not args.wh : 
           pdau1 = event.daughters[0].second
           branches["ptdau1"][0] = pdau1.Pt()
           branches["pxdau1"][0] = pdau1.Px()
@@ -368,6 +400,7 @@ try:
         
 
         if args.ggH4l:
+          #add FSR photon to the root file 
           if( len(event.associated) > 0):
             ph1 = event.associated[0].second
             branches["pxph1"][0] = ph1.Px()
