@@ -12,11 +12,11 @@ if __name__ == "__main__":
   g.add_argument("--vbf", action="store_true")
   g.add_argument("--vbf_withdecay", action="store_true")
   g.add_argument("--zh", action="store_true")
+  g.add_argument("--zh_withdecay", action="store_true")
   g.add_argument("--zh_lep", action="store_true")
   g.add_argument("--zh_lep_hawk", action="store_true")
-  g.add_argument("--wh_lep", action="store_true")
   g.add_argument("--wh_withdecay", action="store_true")
-  g.add_argument("--zh_withdecay", action="store_true")
+  g.add_argument("--wh_lep", action="store_true")
   g.add_argument("--wh", action="store_true")
   g.add_argument("--ggH4l", action="store_true") # for ggH 4l JHUGen and prophecy  
   g.add_argument("--ggH4lMG", action="store_true") # for ggH4l Madgraph with weights
@@ -37,7 +37,7 @@ import itertools
 
 import ROOT
 
-from lhefile import LHEFile_JHUGenVBFVH, LHEFile_Hwithdecay,LHEFile_HwithdecayOnly, LHEFile_Offshell4l,LHEFile_StableHiggs,LHEFile_StableHiggsZHHAWK
+from lhefile import LHEFile_JHUGenVBFVH, LHEFile_Hwithdecay, LHEFile_VHHiggsdecay,LHEFile_HwithdecayOnly, LHEFile_Offshell4l,LHEFile_StableHiggs,LHEFile_StableHiggsZHHAWK
 from mela import Mela, SimpleParticle_t, SimpleParticleCollection_t, TVar
 from pythonmelautils import MultiDimensionalCppArray, SelfDParameter, SelfDCoupling
 
@@ -149,7 +149,7 @@ try:
   branchnames_float = "costheta1", "costheta2", "Phi1", "costhetastar", "Phi", "HJJpz","M4L","MZ1","MZ2","costheta1d","costheta2d","Phid","costhetastard","Phi1d"
   if args.calc_prodprob or args.calc_decayprob :
     branchnames_float += ("pg1", "pg4","pg2","pg1g2","pg1g4","pg2za","pg4za","pg1g2za","pg1g4za","D0minus","D0hplus", "DCP", "Dint","D0minus_za","D0hplus_za","Dint_za","DCP_za")
-  if args.zh or args.wh or args.zh_lep or args.wh_lep or args.zh_lep_hawk:
+  if args.zh or args.wh or args.zh_withdecay or args.wh_withdecay or args.zh_lep or args.wh_lep or args.zh_lep_hawk:
     branchnames_float += ("mV", "mVstar",    "pxj1", "pyj1", "pzj1", "Ej1",
     "pxj2", "pyj2", "pzj2", "Ej2")
     
@@ -198,23 +198,25 @@ try:
   
   for inputfile in args.inputfile:
     print inputfile
-
-
     inputfclass = LHEFile_Hwithdecay(inputfile,isgen=args.use_flavor)
     if args.ggH4l : 
       inputfclass = LHEFile_HwithdecayOnly(inputfile,isgen=args.use_flavor)
     if args.vbf or args.zh or args.wh or args.zh_lep or args.wh_lep  :
       inputfclass = LHEFile_StableHiggs(inputfile,isgen=args.use_flavor)
+    if args.zh_withdecay or args.wh_withdecay  :
+      inputfclass = LHEFile_VHHiggsdecay(inputfile,isgen=args.use_flavor)
     if args.zh_lep_hawk :
       print ("Algorithm will automaticaly merge associated FSR photons to the leptons")
       inputfclass = LHEFile_StableHiggsZHHAWK(inputfile,isgen=args.use_flavor)
 
+    #inputfclass = LHEFile_Hwithdecay(inputfile,isgen=args.use_flavor)
+    
     with inputfclass  as f:
       for i, event in enumerate(f):
-
+        print "here"
         #debugging purposes
-        #if i > 100000 : 
-        #  break
+        if i > 10000 : 
+          break
         
         #if( i % 100 == 0): 
         #  print ("Processed", i, " events",end="\r")
@@ -224,15 +226,16 @@ try:
         associated_flavor = 0
         for a in event.associated:
           associated_flavor=abs(a.first)
+          print associated_flavor
         if associated_flavor in [1,2,3,4,5,6]:
-          if args.zh:
+          if args.zh or args.zh_withdecay:
             process = TVar.Had_ZH
-          elif args.wh:
+          elif args.wh or args.wh_withdecay:
             process = TVar.Had_WH
         if associated_flavor in [11,12,13,14,15,16]:
-          if args.zh:
+          if args.zh or args.zh_withdecay:
             process = TVar.Lep_ZH
-          elif args.wh:
+          elif args.wh or args.wh_withdecay:
             process = TVar.Lep_WH
         if args.vbf or args.vbf_withdecay:
           process = TVar.JJVBF
